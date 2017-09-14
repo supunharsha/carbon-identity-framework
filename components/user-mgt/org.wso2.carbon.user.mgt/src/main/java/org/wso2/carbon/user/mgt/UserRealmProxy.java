@@ -70,6 +70,10 @@ public class UserRealmProxy {
 
     private static final Log log = LogFactory.getLog(UserRealmProxy.class);
 
+    private static final Log audit = CarbonConstants.AUDIT_LOG;
+    private static final String FAILURE = "Failure";
+    private static String AUDIT_MESSAGE = "Initiator : %s | Action : %s | Target : %s | Data : { %s } | Result : %s ";
+
     private static final String APPLICATIONS_PATH = RegistryConstants.PATH_SEPARATOR
             + CarbonConstants.UI_PERMISSION_NAME + RegistryConstants.PATH_SEPARATOR
             + "applications";
@@ -795,6 +799,8 @@ public class UserRealmProxy {
             if (realmConfig.getAdminUserName().equalsIgnoreCase(userName) &&
                     !adminUser.equalsIgnoreCase(loggedInUserName)) {
                 log.warn("An attempt to change password of Admin user by user : " + loggedInUserName);
+                audit.error(String.format(AUDIT_MESSAGE, loggedInUserName, "Attempt to change password of Admin user : "
+                        + adminUser, adminUser, userName, FAILURE));
                 throw new UserStoreException("You have not privilege to change password of Admin user");
             }
 

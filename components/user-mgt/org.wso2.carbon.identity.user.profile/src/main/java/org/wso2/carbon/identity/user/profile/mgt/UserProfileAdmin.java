@@ -61,6 +61,10 @@ public class UserProfileAdmin extends AbstractAdmin {
     private static UserProfileAdmin userProfileAdmin = new UserProfileAdmin();
     private String authorizationFailureMessage = "You are not authorized to perform this action.";
 
+    private static final Log audit = CarbonConstants.AUDIT_LOG;
+    private static final String FAILURE = "Failure";
+    private static String AUDIT_MESSAGE = "Initiator : %s | Action : %s | Target : %s | Data : { %s } | Result : %s ";
+
     private static final String USER_PROFILE_DELETE_PERMISSION = "/manage/identity/userprofile/delete";
     private static final String USER_PROFILE_VIEW_PERMISSION = "/manage/identity/userprofile/view";
     private static final String USER_PROFILE_MANAGE_PERMISSION = "/manage/identity/userprofile";
@@ -86,8 +90,16 @@ public class UserProfileAdmin extends AbstractAdmin {
     public void setUserProfile(String username, UserProfileDTO profile) throws UserProfileException {
         UserRealm realm = null;
         try {
-
-            if (!this.isAuthorized(username, USER_PROFILE_MANAGE_PERMISSION)) {
+            StringBuilder currentUser = new StringBuilder();
+            if (!this.isAuthorized(currentUser, username, USER_PROFILE_MANAGE_PERMISSION)) {
+                StringBuilder userInfo = new StringBuilder();
+                UserFieldDTO[] userData = profile.getFieldValues();
+                for (UserFieldDTO userField : userData) {
+                    userInfo.append("\"").append(userField.getDisplayName()).append("\"").append(" : ").append("\"").append(userField.getFieldValue()).append("\"").append(", ");
+                }
+                userInfo.delete(userInfo.length() - 2, userInfo.length() - 1);
+                audit.error(String.format(AUDIT_MESSAGE, currentUser.toString(), "Update the user profile of user "+ username,
+                        username, userInfo, FAILURE));
                 throw new UserProfileException(authorizationFailureMessage);
             }
 
@@ -147,7 +159,8 @@ public class UserProfileAdmin extends AbstractAdmin {
     public void deleteUserProfile(String username, String profileName) throws UserProfileException {
         UserRealm realm = null;
         try {
-            if (!this.isAuthorized(username, USER_PROFILE_DELETE_PERMISSION)) {
+            StringBuilder currentUser = new StringBuilder();
+            if (!this.isAuthorized(currentUser, username, USER_PROFILE_DELETE_PERMISSION)) {
                 throw new UserProfileException(authorizationFailureMessage);
             }
 
@@ -178,7 +191,8 @@ public class UserProfileAdmin extends AbstractAdmin {
         String[] availableProfileConfigurations = new String[0];
         String profileConfig = null;
         try {
-            if (!this.isAuthorized(username, USER_PROFILE_VIEW_PERMISSION)) {
+            StringBuilder currentUser = new StringBuilder();
+            if (!this.isAuthorized(currentUser, username, USER_PROFILE_VIEW_PERMISSION)) {
                 throw new UserProfileException(authorizationFailureMessage);
             }
 
@@ -335,8 +349,8 @@ public class UserProfileAdmin extends AbstractAdmin {
             if (username == null || profileName == null) {
                 throw new UserProfileException("Invalid input parameters");
             }
-
-            if (!this.isAuthorized(username, USER_PROFILE_VIEW_PERMISSION)) {
+            StringBuilder currentUser = new StringBuilder();
+            if (!this.isAuthorized(currentUser, username, USER_PROFILE_VIEW_PERMISSION)) {
                 throw new UserProfileException(authorizationFailureMessage);
             }
 
@@ -513,7 +527,7 @@ public class UserProfileAdmin extends AbstractAdmin {
     }
 
 
-    private boolean isAuthorized(String targetUser, String permissionString) throws UserStoreException,
+    private boolean isAuthorized(StringBuilder currentUser, String targetUser, String permissionString) throws UserStoreException,
             CarbonException {
         boolean isAuthrized = false;
         MessageContext msgContext = MessageContext.getCurrentMessageContext();
@@ -522,6 +536,7 @@ public class UserProfileAdmin extends AbstractAdmin {
         HttpSession httpSession = request.getSession(false);
         if (httpSession != null) {
             String userName = (String) httpSession.getAttribute(ServerConstants.USER_LOGGED_IN);
+            currentUser.append(userName);
             isAuthrized = isUserAuthorizedToConfigureProfile(getUserRealm(), userName, targetUser, permissionString);
         }
         return isAuthrized;
